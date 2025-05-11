@@ -1,64 +1,52 @@
 import streamlit as st
-import joblib
-from datetime import datetime
 import pandas as pd
+import numpy as np
+import joblib
+import os
 
-# Load the model
-model = joblib.load("flight_delay_model.pkl")
+# -------- Load the model safely --------
+model_path = os.path.join(os.path.dirname(__file__), "flight_delay_model.pkl")
 
-# Prediction logic
-def preprocess_and_predict(data_dict):
-    data_dict['Scheduled_Departure_Time'] = pd.to_datetime(data_dict['Scheduled_Departure_Time'])
-    data_dict['Actual_Departure_Time'] = pd.to_datetime(data_dict['Actual_Departure_Time'])
-    data_dict['Scheduled_Arrival_Time'] = pd.to_datetime(data_dict['Scheduled_Arrival_Time'])
-    data_dict['Actual_Arrival_Time'] = pd.to_datetime(data_dict['Actual_Arrival_Time'])
+try:
+    model = joblib.load(model_path)
+except FileNotFoundError:
+    st.error("❌ Model file 'flight_delay_model.pkl' not found. Please ensure it's in the same folder as this script.")
+    st.stop()
 
-    df = pd.DataFrame([data_dict])
-    df['Dep_Hour'] = df['Scheduled_Departure_Time'].dt.hour
-    df['Dep_DayOfWeek'] = df['Scheduled_Departure_Time'].dt.dayofweek
-    df['Dep_Month'] = df['Scheduled_Departure_Time'].dt.month
-    df['Flight_Duration_Min'] = (df['Scheduled_Arrival_Time'] - df['Scheduled_Departure_Time']).dt.total_seconds() / 60
-    df['Dep_Delay_Min'] = (df['Actual_Departure_Time'] - df['Scheduled_Departure_Time']).dt.total_seconds() / 60
-    df['Arr_Delay_Min'] = (df['Actual_Arrival_Time'] - df['Scheduled_Arrival_Time']).dt.total_seconds() / 60
-
-    categorical_cols = ['Airline', 'Origin_Airport', 'Destination_Airport', 'Weather_Condition']
-    df = pd.get_dummies(df, columns=categorical_cols)
+# -------- Preprocessing and prediction logic --------
+def preprocess_and_predict(input_data):
+    # Sample preprocessing - update this according to your model requirements
+    df = pd.DataFrame([input_data])
     
-    model_features = model.feature_names_in_
-    for col in model_features:
-        if col not in df.columns:
-            df[col] = 0
-    df = df[model_features]
+    # If you have encoding/scaling, add it here
 
-    prediction = model.predict(df)[0]
-    prob = model.predict_proba(df)[0][1]
-    return ("Delayed" if prediction == 1 else "On-Time", round(prob * 100, 2))
+    # Prediction
+    prediction = model.predict(df)
+    return prediction[0]
 
-# Streamlit UI
-st.title("Flight Delay Prediction")
+# -------- Streamlit UI --------
+st.title("✈️ Flight Delay Prediction App")
 
-with st.form("flight_form"):
-    airline = st.text_input("Airline")
-    origin = st.text_input("Origin Airport")
-    destination = st.text_input("Destination Airport")
-    weather = st.selectbox("Weather Condition", ["Clear", "Rain", "Fog", "Storm"])
-    sched_dep = st.datetime_input("Scheduled Departure Time")
-    actual_dep = st.datetime_input("Actual Departure Time")
-    sched_arr = st.datetime_input("Scheduled Arrival Time")
-    actual_arr = st.datetime_input("Actual Arrival Time")
+# Example input fields - adjust these based on your model
+airline = st.selectbox("Airline", ["AirlineA", "AirlineB", "AirlineC"])
+source = st.selectbox("Source Airport", ["JFK", "LAX", "ATL"])
+destination = st.selectbox("Destination Airport", ["ORD", "DFW", "DEN"])
+departure_time = st.number_input("Scheduled Departure Hour (0–23)", 0, 23)
+arrival_time = st.number_input("Scheduled Arrival Hour (0–23)", 0, 23)
+day_of_week = st.selectbox("Day of Week", [1, 2, 3, 4, 5, 6, 7])  # 1 = Monday
 
-    submitted = st.form_submit_button("Predict")
+# Collect data
+input_data = {
+    "Airline": airline,
+    "Source": source,
+    "Destination": destination,
+    "Scheduled_Departure_Hour": departure_time,
+    "Scheduled_Arrival_Hour": arrival_time,
+    "Day_of_Week": day_of_week
+}
 
-    if submitted:
-        data = {
-            "Airline": airline,
-            "Origin_Airport": origin,
-            "Destination_Airport": destination,
-            "Weather_Condition": weather,
-            "Scheduled_Departure_Time": sched_dep,
-            "Actual_Departure_Time": actual_dep,
-            "Scheduled_Arrival_Time": sched_arr,
-            "Actual_Arrival_Time": actual_arr
-        }
-        result, confidence = preprocess_and_predict(data)
-        st.success(f"Prediction: {result} ({confidence}% confidence)")
+# Prediction button
+if st.button("Predict Delay Status"):
+    result = preprocess_and_predict(input_data)
+    st.success(f"✈️ Prediction: **{result}**")
+
