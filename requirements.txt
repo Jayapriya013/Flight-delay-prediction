@@ -1,6 +1,4 @@
 streamlit
-keras
 scikit-learn
 numpy
 joblib
-
