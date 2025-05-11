@@ -7,27 +7,39 @@ import joblib
 # Load model and scaler
 @st.cache_resource
 def load_model_and_scaler():
-    model = joblib.load("random_forest_model.pkl")  # Your Random Forest model
-    scaler = joblib.load("scaler.pkl")              # Your fitted StandardScaler or MinMaxScaler
+    model = joblib.load("random_forest_model.pkl")
+    scaler = joblib.load("scaler.pkl")
     return model, scaler
 
 model, scaler = load_model_and_scaler()
 
-# Encoding maps for origin and destination
+# Encodings for categorical values
 origin_encoding = {"ATL": 0, "LAX": 1, "ORD": 2}
 destination_encoding = {"SEA": 0, "JFK": 1, "SFO": 2}
 
-# Function to preprocess input for prediction
+# Preprocessing
 def preprocess_input(input_data):
     input_array = np.array(input_data).reshape(1, -1)
     input_scaled = scaler.transform(input_array)
     return input_scaled
 
-# Streamlit UI
+# UI Design
 st.set_page_config(page_title="Flight Delay Prediction", layout="centered")
-st.markdown("<h2 style='text-align: center;'>FLIGHT DELAY PREDICTION</h2>", unsafe_allow_html=True)
 
-# Input Fields
+st.markdown("""
+    <h2 style='text-align: center;'>FLIGHT DELAY PREDICTION</h2>
+    <style>
+        .stButton>button {
+            background-color: #003366;
+            color: white;
+            padding: 0.5em 2em;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Form Input
 flight_number = st.text_input("Enter the Flight Number", "1399")
 month = st.text_input("Month", "1")
 day_of_month = st.text_input("Day of Month", "1")
@@ -38,11 +50,10 @@ scheduled_departure = st.text_input("Scheduled Departure Time", "1905")
 scheduled_arrival = st.text_input("Scheduled Arrival Time", "2143")
 actual_departure = st.text_input("Actual Departure Time", "1901")
 
-# Predict Button
+# Submit
 if st.button("Submit"):
     try:
-        # Convert inputs to numeric and encode
-        input_features = [
+        features = [
             int(flight_number),
             int(month),
             int(day_of_month),
@@ -54,13 +65,14 @@ if st.button("Submit"):
             destination_encoding[destination]
         ]
 
-        # Preprocess and predict
-        processed_input = preprocess_input(input_features)
+        processed_input = preprocess_input(features)
         prediction = model.predict(processed_input)[0]
 
-        # Result
-        result = "Delayed" if prediction == 1 else "On Time"
-        st.success(f"Prediction: **{result}**")
+        # Output
+        if prediction == 1:
+            st.success("✈️ Prediction: **Delayed**")
+        else:
+            st.success("🟢 Prediction: **On Time**")
 
     except Exception as e:
-        st.error(f"Error in prediction: {e}")
+        st.error(f"⚠️ Error: {e}")
