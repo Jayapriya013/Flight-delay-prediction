@@ -1,37 +1,62 @@
+# app.py
+
 import streamlit as st
-from datetime import datetime, timedelta
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import joblib
 
-# Streamlit UI
-st.title("✈️ Flight Delay Checker (Rule-Based Logic)")
+# Load model and scaler
+model = load_model("lstm_model.h5")
+scaler = joblib.load("scaler.pkl")
 
-st.markdown("Check if a flight is delayed based on scheduled and actual departure times.")
+# Encoding maps
+origin_encoding = {"ATL": 0, "LAX": 1, "ORD": 2}
+destination_encoding = {"SEA": 0, "JFK": 1, "SFO": 2}
 
-with st.form("delay_form"):
-    source = st.selectbox("Source Airport", ["JFK", "LAX", "ATL", "ORD", "DFW", "DEN"])
-    destination = st.selectbox("Destination Airport", ["JFK", "LAX", "ATL", "ORD", "DFW", "DEN"])
+def preprocess_input(input_data):
+    input_array = np.array(input_data).reshape(1, -1)
+    input_scaled = scaler.transform(input_array)
+    return input_scaled.reshape(1, 1, -1)  # For LSTM
 
-    scheduled_time = st.time_input("Scheduled Departure Time (HH:MM)")
-    actual_time = st.time_input("Actual Departure Time (HH:MM)")
+# UI Setup
+st.set_page_config(page_title="Flight Delay Prediction", layout="centered")
 
-    submitted = st.form_submit_button("Check Delay")
+st.markdown("<h2 style='text-align: center;'>FLIGHT DELAY PREDICTION</h2>", unsafe_allow_html=True)
 
-if submitted:
-    if source == destination:
-        st.warning("Source and destination airports must be different.")
-    else:
-        # Combine with today's date for datetime comparison
-        today = datetime.today().date()
-        scheduled_dt = datetime.combine(today, scheduled_time)
-        actual_dt = datetime.combine(today, actual_time)
+# Input Fields
+flight_number = st.text_input("Enter the Flight Number", "1399")
+month = st.text_input("Month", "1")
+day_of_month = st.text_input("Day of Month", "1")
+day_of_week = st.text_input("Day of Week", "5")
 
-        # Handle flights crossing midnight
-        if actual_dt < scheduled_dt:
-            actual_dt += timedelta(days=1)
+origin = st.selectbox("Origin", list(origin_encoding.keys()))
+destination = st.selectbox("Destination", list(destination_encoding.keys()))
 
-        # Calculate delay in minutes
-        delay_minutes = (actual_dt - scheduled_dt).total_seconds() / 60
+scheduled_departure = st.text_input("Scheduled Departure Time", "1905")
+scheduled_arrival = st.text_input("Scheduled Arrival Time", "2143")
+actual_departure = st.text_input("Actual Departure Time", "1901")
 
-        if delay_minutes > 15:
-            st.error(f"❌ Delayed by {int(delay_minutes)} minutes")
-        else:
-            st.success(f"✅ On Time (Delay: {int(delay_minutes)} minutes)")
+if st.button("Submit"):
+    try:
+        # Prepare input
+        input_features = [
+
+            int(airport_name),
+            int(month),
+            int(year),
+            int(scheduled_departure),
+            int(scheduled_arrival),
+            int(actual_departure),
+            origin_encoding[origin],
+            destination_encoding[destination]
+        ]
+
+        processed = preprocess_input(input_features)
+        prediction = model.predict(processed)[0][0]
+
+        result = "Delayed" if prediction > 0.5 else "On Time"
+        st.success(f"Prediction: **{result}**")
+
+    except Exception as e:
+        st.error(f"Error: {e}")
